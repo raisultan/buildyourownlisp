@@ -28,51 +28,70 @@ void add_history(char* unused) {}
 
 #endif
 
-long eval_op(long x, char* op, long y) {
-  if (!strcmp(op, "+")) { return x + y; }
-  if (!strcmp(op, "-")) { return x - y; }
-  if (!strcmp(op, "*")) { return x * y; }
-  if (!strcmp(op, "/")) { return x / y; }
-  return 0;
-}
-
-long eval(mpc_ast_t* t) {
-  // base case
-  if (strstr(t->tag, "number")) { return atoi(t->contents); }
-
-  // the operator is always second child
-  char* op = t->children[1]->contents;
-
-  // store the third child in 'x'
-  long x = eval(t->children[2]);
-
-  int i = 3;
-  while (strstr(t->children[i]->tag, "expr")) {
-    x = eval_op(x, op, eval(t->children[i]));
-    i++;
-  }
-
-  return x;
-}
-
-typedef struct {
+typedef struct lval {
   int type;
+
   long num;
-  int err;
+
+  char* err;
+  char* sym;
+
+  int count;
+  // when referencing itself it must contain only pointer, not the type directly
+  struct lval** cell;  // pointer to list of lvals - a pointer to lval pointers
 } lval;
 
-lval lval_num(long x) {
-  lval v;
-  v.type = LVAL_NUM;
-  v.num = x;
+// type field
+enum { LVAL_NUM, LVAL_ERR, LVAL_SYM, LVAL_SEXPR };  // automatically assigned integers
+
+// err field
+enum { LERR_DIV_ZERO, LERR_BAD_OP, LERR_BAD_NUM };
+
+lval* lval_num(long x) {
+  lval* v = malloc(sizeof(lval));
+  v->type = LVAL_NUM;
+  v->num = x;
   return v;
 }
 
-lval lval_err(int x) {
-  lval v;
-  v.type = LVAL_ERR;
-  v.err = x;
+lval* lval_err(char* m) {
+  lval* v = malloc(sizeof(lval));
+  v->type = LVAL_ERR;
+  // strlen returns number of bytes excluding the null terminator, so we add space for it ourselves
+  v->err = malloc(strlen(m) + 1);
+  strcpy(v->err, m);
   return v;
+}
+
+lval* lval_sym(char* s) {
+  lval* v = malloc(sizeof(lval));
+  v->type = LVAL_SYM;
+  v->sym = malloc(strlen(s) + 1);
+  strcpy(v->sym, s);
+  return v;
+}
+
+lval* lval_sexpr(void) {
+  lval* v = malloc(sizeof(lval));
+  v->type = LVAL_SEXPR;
+  v->count = 0;
+  v->cell = NULL;  // memory location zero - non-value or empty data
+  return v;
+}
+
+void lval_del(lval* v) {
+  switch (v->type) {
+    case LVAL_NUM: break;
+    case LVAL_ERR: free(v->err); break;
+    case LVAL_SYM: free(v->sym); break;
+    case LVAL_SEXPR:
+      for (int i = 0; i < v->count; i++) {
+        lval_del(v->cell[i]);
+      }
+      free(v->cell);
+    break;
+  }
+  free(v);
 }
 
 void lval_print(lval v) {
@@ -88,26 +107,57 @@ void lval_print(lval v) {
 
 void lval_println(lval v) { lval_print(v); putchar('\n'); }
 
-// type field
-enum { LVAL_NUM, LVAL_ERR };  // automatically assigned integers
+lval eval_op(lval x, char* op, lval y) {
+  if (x.type == LVAL_ERR) { return x; }
+  if (y.type == LVAL_ERR) { return y; }
 
-// err field
-enum { LERR_DIV_ZERO, LERR_BAD_OP, LERR_BAD_NUM };
+  if (!strcmp(op, "+")) { return lval_num(x.num + y.num); }
+  if (!strcmp(op, "-")) { return lval_num(x.num - y.num); }
+  if (!strcmp(op, "*")) { return lval_num(x.num * y.num); }
+  if (!strcmp(op, "/")) {
+    return y.num == 0 ? lval_err(LERR_DIV_ZERO) : lval_num(x.num / y.num);
+  }
+  return lval_err(LERR_BAD_OP);
+}
+
+lval eval(mpc_ast_t* t) {
+  // base case
+  if (strstr(t->tag, "number")) {
+    long x = strtol(t->contents, NULL, 10);
+    return errno != ERANGE ? lval_num(x) : lval_err(LERR_BAD_NUM);
+  }
+
+  // the operator is always second child
+  char* op = t->children[1]->contents;
+
+  // store the third child in 'x'
+  lval x = eval(t->children[2]);
+
+  int i = 3;
+  while (strstr(t->children[i]->tag, "expr")) {
+    x = eval_op(x, op, eval(t->children[i]));
+    i++;
+  }
+
+  return x;
+}
 
 int main(int argc, char** argv) {
   mpc_parser_t* Number = mpc_new("number");
-  mpc_parser_t* Operator = mpc_new("operator");
+  mpc_parser_t* Symbol = mpc_new("symbol");
+  mpc_parser_t* Sexpr = mpc_new("sexpr");
   mpc_parser_t* Expr = mpc_new("expr");
   mpc_parser_t* Lispy = mpc_new("lispy");
 
   mpca_lang(MPCA_LANG_DEFAULT,
     "                                                  \
       number  : /-?[0-9]+/;                            \
-      operator: '+' | '-' | '*' | '/';                 \
-      expr    : <number> | '(' <operator> <expr>+ ')'; \
-      lispy   : /^/ <operator> <expr>+ /$/;            \
+      symbol  : '+' | '-' | '*' | '/';                 \
+      sexpr    : '(' <expr>* ')';                      \
+      expr    : <number> | <symbol> | <sexp>;          \
+      lispy   : /^/ <expr>* /$/;            \
     ",
-    Number, Operator, Expr, Lispy);
+    Number, Symbol, Sexpr, Expr, Lispy);
 
   puts("Lispy Version 0.0.0.0.1");
   puts("Press Ctrl+c to Exit\n");
@@ -118,18 +168,40 @@ int main(int argc, char** argv) {
 
     mpc_result_t r;
     if (mpc_parse("<stdin>", input, Lispy, &r)) {
-      mpc_ast_print(r.output);
-      long result = eval(r.output);
-      printf("result: %li\n\n", result);
+      lval result = eval(r.output);
+      lval_println(result);
       mpc_ast_delete(r.output);
     } else {
       mpc_err_print(r.error);
       mpc_err_delete(r.error);
     }
-
     free(input);
   }
 
-  mpc_cleanup(4, Number, Operator, Expr, Lispy);
+  mpc_cleanup(5, Number, Symbol, Sexpr, Expr, Lispy);
   return 0;
 }
+
+// & address of
+// * pointer type
+// getting data from an adress is called "dereferencing"
+/*
+void assign_value(some_struct_type* v) {
+  // v is adress here
+  // *v is value of the adress
+  v->field = 0;
+}
+
+some_struct_type v;
+assign_value(&v);
+*/
+
+/*
+The Stack
+- part of memory where your program lives: vars, funcs, etc
+- after the part of memory is used it is unallocated
+
+The Heap
+- storage of objects with a longer lifespan
+- has to be manually allocated and deallocated: malloc -> *, free(*)
+*/
