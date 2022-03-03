@@ -196,7 +196,7 @@ lval* lval_eval_sexpr(lval* v) {
   }
 
   // call builtin with operator
-  lval* result = builtin_op(v, f->sym);
+  lval* result = builtin(v, f->sym);
   lval_del(f);
   return result;
 }
@@ -334,6 +334,18 @@ lval* lval_join(lval* x, lval* y) {
   // y is empty, so delete it
   lval_del(y);
   return x;
+}
+
+lval* builtin(lval* a, char* func) {
+  if (!stcmp("list", func)) { return builtin_list(a); }
+  if (!stcmp("head", func)) { return builtin_head(a); }
+  if (!stcmp("tail", func)) { return builtin_tail(a); }
+  if (!stcmp("join", func)) { return builtin_join(a); }
+  if (!stcmp("eval", func)) { return builtin_eval(a); }
+  if (strstr("+-/*", func)) { return builtin_op(a, func); }
+
+  lval_del(a);
+  return lval_err("Unknown function!");
 }
 
 int main(int argc, char** argv) {
