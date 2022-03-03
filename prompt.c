@@ -264,22 +264,14 @@ lval* builtin_op(lval* a, char* op) {
   return x;
 }
 
+// using macro for preprocessing, error handling specifically
+#define LASSERT(args, cond, err) if (!(cond)) { lval_del(args); return lval_err(err); }
+
 lval* builtin_head(lval* a) {
-  // check error conditions
-  if (a->count != 1) {
-    lval_del(a);
-    return lval_err("Function 'head' passed incorrect number of arguments!");
-  }
-
-  if (a->cell[0]->type != LVAL_QEXPR) {
-    lval_del(a);
-    return lval_err("Function 'head' passed incorrect types!");
-  }
-
-  if (a->cell[0]->count == 0) {
-    lval_del(a);
-    return lval_err("Function 'head' passed {}!");
-  }
+  // check error conditions using macro
+  LASSERT(a, a->count != 1, "Function 'head' passed incorrect number of arguments!");
+  LASSERT(a, a->cell[0]->type != LVAL_QEXPR, "Function 'head' passed incorrect types!");
+  LASSERT(a, a->cell[0]->count == 0, "Function 'head' passed {}!");
 
   // otherwise take first agument
   lval* v = lval_take(a, 0);
@@ -291,20 +283,9 @@ lval* builtin_head(lval* a) {
 
 lval* builtin_tail(lval* a) {
   // check error conditions
-  if (a->count != 1) {
-    lval_del(a);
-    return lval_err("Function 'tail' passed incorrect number of arguments!");
-  }
-
-  if (a->cell[0]->type != LVAL_QEXPR) {
-    lval_del(a);
-    return lval_err("Function 'tail' passed incorrect types!");
-  }
-
-  if (a->cell[0]->count == 0) {
-    lval_del(a);
-    return lval_err("Function 'tail' passed {}!");
-  }
+  LASSERT(a, a->count != 1, "Function 'tail' passed incorrect number of arguments!");
+  LASSERT(a, a->cell[0]->type != LVAL_QEXPR, "Function 'tail' passed incorrect types!");
+  LASSERT(a, a->cell[0]->count == 0, "Function 'tail' passed {}!");
 
   // take first argument
   lval* v = lval_take(a, 0);
