@@ -172,7 +172,7 @@ lval* builtin_op(lval* a, char* op);
 
 lval* lval_eval_sexpr(lval* v) {
   // evaluate children
-  for (int i = 0; i < v-> count; i++) {
+  for (int i = 0; i < v->count; i++) {
     v->cell[i] = lval_eval(v->cell[i]);
   }
 
@@ -293,6 +293,21 @@ lval* builtin_tail(lval* a) {
   // delete first element and return
   lval_del(lval_pop(v, 0));
   return v;
+}
+
+// takes sexpr and converts it to qexpr
+lval* builtin_list(lval* a) {
+  a->type = LVAL_QEXPR;
+  return a;
+}
+
+lval* builtin_eval(lval* a) {
+  LASSERT(a, a->count == 1, "Function 'eval' passed incorrect number of arguments!");
+  LASSERT(a, a->cell[0]->type == LVAL_QEXPR, "Function 'eval' passed incorrect type!");
+
+  lval* x = lval_take(a, 0);
+  x->type = LVAL_SEXPR;
+  return lval_eval(x);
 }
 
 int main(int argc, char** argv) {
