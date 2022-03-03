@@ -105,6 +105,8 @@ void lval_del(lval* v) {
 }
 
 void lval_print(lval* v);  // forward declaration to pass cyclic use
+lval* builtin(lval* a, char* func);
+lval* lval_join(lval* x, lval* y);
 
 lval* lval_add(lval* v, lval* x) {
   v->count++;
@@ -269,9 +271,9 @@ lval* builtin_op(lval* a, char* op) {
 
 lval* builtin_head(lval* a) {
   // check error conditions using macro
-  LASSERT(a, a->count != 1, "Function 'head' passed incorrect number of arguments!");
-  LASSERT(a, a->cell[0]->type != LVAL_QEXPR, "Function 'head' passed incorrect types!");
-  LASSERT(a, a->cell[0]->count == 0, "Function 'head' passed {}!");
+  LASSERT(a, a->count == 1, "Function 'head' passed incorrect number of arguments!");
+  LASSERT(a, a->cell[0]->type == LVAL_QEXPR, "Function 'head' passed incorrect types!");
+  LASSERT(a, a->cell[0]->count != 0, "Function 'head' passed {}!");
 
   // otherwise take first agument
   lval* v = lval_take(a, 0);
@@ -283,9 +285,9 @@ lval* builtin_head(lval* a) {
 
 lval* builtin_tail(lval* a) {
   // check error conditions
-  LASSERT(a, a->count != 1, "Function 'tail' passed incorrect number of arguments!");
-  LASSERT(a, a->cell[0]->type != LVAL_QEXPR, "Function 'tail' passed incorrect types!");
-  LASSERT(a, a->cell[0]->count == 0, "Function 'tail' passed {}!");
+  LASSERT(a, a->count == 1, "Function 'tail' passed incorrect number of arguments!");
+  LASSERT(a, a->cell[0]->type == LVAL_QEXPR, "Function 'tail' passed incorrect types!");
+  LASSERT(a, a->cell[0]->count != 0, "Function 'tail' passed {}!");
 
   // take first argument
   lval* v = lval_take(a, 0);
@@ -337,11 +339,11 @@ lval* lval_join(lval* x, lval* y) {
 }
 
 lval* builtin(lval* a, char* func) {
-  if (!stcmp("list", func)) { return builtin_list(a); }
-  if (!stcmp("head", func)) { return builtin_head(a); }
-  if (!stcmp("tail", func)) { return builtin_tail(a); }
-  if (!stcmp("join", func)) { return builtin_join(a); }
-  if (!stcmp("eval", func)) { return builtin_eval(a); }
+  if (!strcmp("list", func)) { return builtin_list(a); }
+  if (!strcmp("head", func)) { return builtin_head(a); }
+  if (!strcmp("tail", func)) { return builtin_tail(a); }
+  if (!strcmp("join", func)) { return builtin_join(a); }
+  if (!strcmp("eval", func)) { return builtin_eval(a); }
   if (strstr("+-/*", func)) { return builtin_op(a, func); }
 
   lval_del(a);
