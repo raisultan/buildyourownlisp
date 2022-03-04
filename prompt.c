@@ -33,9 +33,15 @@ struct lenv;
 typedef struct lval lval;
 typedef struct lenv lenv;
 
+// type field
+enum { LVAL_NUM, LVAL_ERR, LVAL_SYM, LVAL_FUN, LVAL_SEXPR, LVAL_QEXPR };  // automatically assigned integers
+
 typedef lval*(*lbuiltin)(lenv*, lval*);
 
-typedef struct lval {
+// err field
+enum { LERR_DIV_ZERO, LERR_BAD_OP, LERR_BAD_NUM };
+
+struct lval {
   int type;
 
   long num;
@@ -48,13 +54,31 @@ typedef struct lval {
   int count;
   // when referencing itself it must contain only pointer, not the type directly
   lval** cell;  // pointer to list of lvals - a pointer to lval pointers
-} lval;
+};
 
-// type field
-enum { LVAL_NUM, LVAL_ERR, LVAL_SYM, LVAL_FUN, LVAL_SEXPR, LVAL_QEXPR };  // automatically assigned integers
+struct lenv {
+  int count;
+  char** syms;
+  lval** vals;
+};
 
-// err field
-enum { LERR_DIV_ZERO, LERR_BAD_OP, LERR_BAD_NUM };
+lenv* lenv_new(void) {
+  lenv* e = malloc(sizeof(lenv));
+  e->count = 0;
+  e->syms = NULL;
+  e->vals = NULL;
+  return e;
+}
+
+void lenv_del(lenv* e) {
+  for (int i = 0; i < e->count; i++) {
+    free(e->syms[i]);
+    lval_del(e->vals[i]);
+  }
+  free(e->syms);
+  free(e->vals);
+  free(e);
+}
 
 lval* lval_fun(lbuiltin func) {
   lval* v = malloc(sizeof(lval));
