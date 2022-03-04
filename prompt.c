@@ -80,6 +80,36 @@ void lenv_del(lenv* e) {
   free(e);
 }
 
+lval* lenv_get(lenv* e, lval* k) {
+  for (int i = 0; i < e->count; i++) {
+    if (!strcmp(k->sym, e->syms[i])) { return lval_copy(e->vals[i]); }
+  }
+  return lval_err("Unbound symbol!");
+}
+
+void lenv_put(lenv* e, lval* k, lval* v) {
+  // if already exists
+  for (int i = 0; i < e->count; i++) {
+    if (!stcmp(k->sym, e->syms[i])) {
+      lval_del(e->vals[i]);
+      e->vals[i] = lval_copy(v);
+      e->syms[i] = realloc(e->syms[i], strlen(k->sym) + 1);
+      strcpy(e->syms[i], k->sym);
+      return;
+    }
+  }
+
+  // no entry found
+  e->count++;
+  e->vals = realloc(e->vals, sizeof(lval*) * e->count);
+  e->syms = realloc(e->syms, sizeof(char*) * e->count);
+
+  // copy contents of lval and symbol string into new location
+  e->vals[e->count-1] = lval_copy(v);
+  e->syms[e->count-1] = malloc(strlen(k->sym)+1);
+  strcpy(e->syms[e->count-1], k->sym);
+}
+
 lval* lval_fun(lbuiltin func) {
   lval* v = malloc(sizeof(lval));
   v->type = LVAL_FUN;
